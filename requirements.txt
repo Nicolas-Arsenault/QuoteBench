@@ -1,0 +1,18 @@
+# Web Framework
+fastapi>=0.110.0
+
+# AI Orchestration & Providers
+langgraph>=1.2.0
+langchain-openai>=0.1.0
+langchain-ollama>=0.1.0
+ollama>=0.2.0
+openai>=2.0.0
+
+# Data Validation & Database Drivers
+pydantic>=2.0.0
+pgvector>=0.2.0
+psycopg[binary]>=3.1.0
+
+# Testing
+pytest>=8.0.0
+httpx>=0.27.0
