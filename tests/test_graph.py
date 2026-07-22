@@ -18,10 +18,8 @@ CANDIDATE = {
 
 @pytest.mark.parametrize(
     ("provider", "requested_discount", "expected_status", "expected_total"),
-    [
-        ("openai", None, "quote_completed", 1552.50),
-        ("qwen", 15, "human_review_required", 1466.25),
-    ],
+    [("qwen", None, "quote_completed", 1552.50),
+     ("qwen", 15, "human_review_required", 1466.25)],
 )
 def test_quote_graph_routes_to_expected_terminal_node(
     monkeypatch,
@@ -79,7 +77,7 @@ def test_graph_stops_when_no_candidates_are_found(monkeypatch):
     monkeypatch.setattr(graph_module, "search_products", lambda **kwargs: [])
 
     result = FinalState.model_validate(
-        build_quote_graph("openai").invoke(FinalState(message="Need a product"))
+        build_quote_graph("qwen").invoke(FinalState(message="Need a product"))
     )
 
     assert result.status == "no_candidate_products"

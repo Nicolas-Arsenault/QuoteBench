@@ -4,11 +4,9 @@ import psycopg
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Response, status
 from fastapi.responses import FileResponse
-from openai import OpenAIError
 from pydantic import BaseModel
 from psycopg.errors import UniqueViolation
 
-from app.comparison import run_model_comparison
 from app.graph import FinalState, quote_graph
 from app.models import Product
 from app.retrieval import add_product, list_products
@@ -75,10 +73,10 @@ def create_product(product: Product) -> Product:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="The product could not be stored",
         ) from exc
-    except (OpenAIError, ValueError, RuntimeError) as exc:
+    except (ValueError, RuntimeError) as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="The product embedding could not be generated",
+            detail="The product could not be processed",
         ) from exc
 
     return product
@@ -100,7 +98,7 @@ def quotes(data: ClientMessage, response: Response) -> FinalState:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="The product catalog could not be searched",
         ) from exc
-    except (OpenAIError, ValueError, RuntimeError) as exc:
+    except (ValueError, RuntimeError) as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="The quote workflow could not be completed",
@@ -110,8 +108,3 @@ def quotes(data: ClientMessage, response: Response) -> FinalState:
         response.status_code = status.HTTP_202_ACCEPTED
 
     return result
-
-
-@app.post("/compare")
-def compare(data: ClientMessage):
-    return run_model_comparison(data.message)

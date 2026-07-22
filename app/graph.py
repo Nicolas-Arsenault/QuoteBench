@@ -4,7 +4,6 @@ from functools import lru_cache
 from typing import Any, Dict, List, Optional
 
 from langchain_ollama import ChatOllama
-from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel
 
@@ -41,13 +40,6 @@ class FinalState(BaseModel):
 
 @lru_cache(maxsize=2)
 def _structured_llm(model_provider: str):
-    if model_provider == "openai":
-        llm = ChatOpenAI(
-            model=os.getenv("OPENAI_CHAT_MODEL", "gpt-4o"),
-            temperature=0,
-        )
-        return llm.with_structured_output(FinalState, method="json_schema")
-
     if model_provider == "qwen":
         llm = ChatOllama(
             model=os.getenv("QWEN_CHAT_MODEL", "qwen3:4b"),
@@ -59,7 +51,7 @@ def _structured_llm(model_provider: str):
     raise ValueError(f"Unsupported model provider: {model_provider}")
 
 
-def _extract_with_llm(message: str, model_provider: str = "openai") -> FinalState:
+def _extract_with_llm(message: str, model_provider: str = "qwen") -> FinalState:
     return _structured_llm(model_provider).invoke(
         [
             (
@@ -77,7 +69,7 @@ percentage number. Leave information that was not provided as null.""",
 def _select_with_llm(
     state: FinalState,
     candidates: List[Dict[str, Any]],
-    model_provider: str = "openai",
+    model_provider: str = "qwen",
 ) -> FinalState:
     return _structured_llm(model_provider).invoke(
         [
@@ -107,7 +99,7 @@ other state fields.""",
 
 
 def extract_requirements_node(
-    state: FinalState, model_provider: str = "openai"
+    state: FinalState, model_provider: str = "qwen"
 ) -> Dict[str, Any]:
     if not state.message or not state.message.strip():
         return {
@@ -163,7 +155,7 @@ def find_candidate_products_node(state: FinalState) -> Dict[str, Any]:
 
 
 def select_products_node(
-    state: FinalState, model_provider: str = "openai"
+    state: FinalState, model_provider: str = "qwen"
 ) -> Dict[str, Any]:
     candidates = state.candidate_products or []
     selection = _select_with_llm(state, candidates, model_provider)
@@ -237,8 +229,8 @@ def _pricing_route(state: FinalState) -> str:
     return "human_review" if state.requires_human_approval else "final_quote"
 
 
-def build_quote_graph(model_provider: str = "openai"):
-    if model_provider not in {"openai", "qwen"}:
+def build_quote_graph(model_provider: str = "qwen"):
+    if model_provider != "qwen":
         raise ValueError(f"Unsupported model provider: {model_provider}")
 
     def extract_for_provider(state: FinalState) -> Dict[str, Any]:
@@ -281,5 +273,4 @@ def build_quote_graph(model_provider: str = "openai"):
     return builder.compile()
 
 
-quote_graph = build_quote_graph("openai")
-qwen_quote_graph = build_quote_graph("qwen")
+quote_graph = build_quote_graph("qwen")
