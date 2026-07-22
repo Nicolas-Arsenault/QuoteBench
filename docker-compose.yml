@@ -1,0 +1,18 @@
+services:
+  db:
+    # This official ecosystem image has the pgvector extension pre-baked
+    image: pgvector/pgvector:pg16
+    container_name: postgres_db
+    restart: always
+    environment:
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mysecretpassword
+      POSTGRES_DB: mydatabase
+    ports:
+      - "5439:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
+    driver: local
