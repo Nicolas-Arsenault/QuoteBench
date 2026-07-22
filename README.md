@@ -1,15 +1,13 @@
 # QuoteBench
 
-QuoteBench is a local LLM-powered semiconductor quoting system. A customer
-describes their application, quantity, budget, delivery window, and requested
-discount in plain language. The service finds eligible catalog products,
-selects the best match, applies deterministic pricing rules, and returns either
-a completed quote or a provisional quote requiring human approval.
+QuoteBench is a locally hosted, AI-powered semiconductor quoting system that
+  matches customer needs with catalog products and generates deterministic quotes,
+  flagging exceptions for human approval. It uses FastAPI, LangGraph, Qwen via
+  Ollama, PostgreSQL, and includes a minimalist browser console—all without
+  requiring an external AI API key.
 
-The project runs locally with FastAPI, LangGraph, Qwen through Ollama, and a
-PostgreSQL product catalog. No external AI API key is required. A minimalist
-browser console is included for adding products, viewing the catalog, and
-testing quote requests.
+https://github.com/user-attachments/assets/84207700-d9d0-4cd5-a0e4-f4cbdb1d037f
+
 
 ## System overview
 
@@ -92,7 +90,6 @@ See [the architecture documentation](docs/architecture.md) for additional
 implementation details.
 
 
-https://github.com/user-attachments/assets/84207700-d9d0-4cd5-a0e4-f4cbdb1d037f
 
 
 
