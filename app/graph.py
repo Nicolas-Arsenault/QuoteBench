@@ -3,6 +3,7 @@ import os
 from functools import lru_cache
 from typing import Any, Dict, List, Optional
 
+from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel
@@ -38,17 +39,28 @@ class FinalState(BaseModel):
     errors: Optional[List[str]] = None
 
 
-@lru_cache(maxsize=1)
-def _structured_llm():
-    llm = ChatOpenAI(
-        model=os.getenv("OPENAI_CHAT_MODEL", "gpt-4o"),
-        temperature=0,
-    )
-    return llm.with_structured_output(FinalState)
+@lru_cache(maxsize=2)
+def _structured_llm(model_provider: str):
+    if model_provider == "openai":
+        llm = ChatOpenAI(
+            model=os.getenv("OPENAI_CHAT_MODEL", "gpt-4o"),
+            temperature=0,
+        )
+        return llm.with_structured_output(FinalState, method="json_schema")
+
+    if model_provider == "qwen":
+        llm = ChatOllama(
+            model=os.getenv("QWEN_CHAT_MODEL", "qwen3:4b"),
+            base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+            temperature=0,
+        )
+        return llm.with_structured_output(FinalState, method="json_schema")
+
+    raise ValueError(f"Unsupported model provider: {model_provider}")
 
 
-def _extract_with_llm(message: str) -> FinalState:
-    return _structured_llm().invoke(
+def _extract_with_llm(message: str, model_provider: str = "openai") -> FinalState:
+    return _structured_llm(model_provider).invoke(
         [
             (
                 "system",
@@ -63,9 +75,11 @@ percentage number. Leave information that was not provided as null.""",
 
 
 def _select_with_llm(
-    state: FinalState, candidates: List[Dict[str, Any]]
+    state: FinalState,
+    candidates: List[Dict[str, Any]],
+    model_provider: str = "openai",
 ) -> FinalState:
-    return _structured_llm().invoke(
+    return _structured_llm(model_provider).invoke(
         [
             (
                 "system",
@@ -92,14 +106,16 @@ other state fields.""",
     )
 
 
-def extract_requirements_node(state: FinalState) -> Dict[str, Any]:
+def extract_requirements_node(
+    state: FinalState, model_provider: str = "openai"
+) -> Dict[str, Any]:
     if not state.message or not state.message.strip():
         return {
             "status": "invalid_request",
             "errors": ["A customer message is required"],
         }
 
-    extracted = _extract_with_llm(state.message)
+    extracted = _extract_with_llm(state.message, model_provider)
     errors = []
     if not extracted.use_case:
         errors.append("The product use case could not be determined")
@@ -146,9 +162,11 @@ def find_candidate_products_node(state: FinalState) -> Dict[str, Any]:
     }
 
 
-def select_products_node(state: FinalState) -> Dict[str, Any]:
+def select_products_node(
+    state: FinalState, model_provider: str = "openai"
+) -> Dict[str, Any]:
     candidates = state.candidate_products or []
-    selection = _select_with_llm(state, candidates)
+    selection = _select_with_llm(state, candidates, model_provider)
     selected = selection.selected_products or []
     candidates_by_sku = {product["sku"]: product for product in candidates}
 
@@ -219,11 +237,20 @@ def _pricing_route(state: FinalState) -> str:
     return "human_review" if state.requires_human_approval else "final_quote"
 
 
-def build_quote_graph():
+def build_quote_graph(model_provider: str = "openai"):
+    if model_provider not in {"openai", "qwen"}:
+        raise ValueError(f"Unsupported model provider: {model_provider}")
+
+    def extract_for_provider(state: FinalState) -> Dict[str, Any]:
+        return extract_requirements_node(state, model_provider)
+
+    def select_for_provider(state: FinalState) -> Dict[str, Any]:
+        return select_products_node(state, model_provider)
+
     builder = StateGraph(FinalState)
-    builder.add_node("extract_requirements", extract_requirements_node)
+    builder.add_node("extract_requirements", extract_for_provider)
     builder.add_node("find_candidates", find_candidate_products_node)
-    builder.add_node("select_product", select_products_node)
+    builder.add_node("select_product", select_for_provider)
     builder.add_node("calculate_price", calculate_price_node)
     builder.add_node("human_review", human_review_node)
     builder.add_node("final_quote", generate_quote_node)
@@ -254,4 +281,5 @@ def build_quote_graph():
     return builder.compile()
 
 
-quote_graph = build_quote_graph()
+quote_graph = build_quote_graph("openai")
+qwen_quote_graph = build_quote_graph("qwen")
