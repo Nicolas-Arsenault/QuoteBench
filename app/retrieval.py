@@ -91,6 +91,48 @@ def add_product(product: Product) -> None:
             )
 
 
+def list_products() -> list[Product]:
+    """Return catalog products without exposing their embedding vectors."""
+
+    dimensions = _embedding_dimensions()
+    create_table = f"""
+        CREATE TABLE IF NOT EXISTS products (
+            sku TEXT PRIMARY KEY,
+            product_name TEXT NOT NULL,
+            unit_price_usd DOUBLE PRECISION NOT NULL,
+            minimum_quantity INTEGER NOT NULL,
+            lead_time_weeks INTEGER NOT NULL,
+            supported_application TEXT NOT NULL,
+            max_discount TEXT NOT NULL,
+            embedding vector({dimensions}) NOT NULL
+        )
+    """
+
+    with psycopg.connect(_database_url()) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute("CREATE EXTENSION IF NOT EXISTS vector")
+            cursor.execute(create_table)
+            cursor.execute(
+                """
+                SELECT
+                    sku,
+                    product_name,
+                    unit_price_usd,
+                    minimum_quantity,
+                    lead_time_weeks,
+                    supported_application,
+                    max_discount
+                FROM products
+                ORDER BY sku
+                """
+            )
+            columns = [column.name for column in cursor.description]
+            return [
+                Product.model_validate(dict(zip(columns, row)))
+                for row in cursor.fetchall()
+            ]
+
+
 def search_products(
     query: str,
     quantity: Optional[int] = None,

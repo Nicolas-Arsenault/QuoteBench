@@ -1,6 +1,9 @@
+from pathlib import Path
+
 import psycopg
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Response, status
+from fastapi.responses import FileResponse
 from openai import OpenAIError
 from pydantic import BaseModel
 from psycopg.errors import UniqueViolation
@@ -8,10 +11,13 @@ from psycopg.errors import UniqueViolation
 from app.comparison import run_model_comparison
 from app.graph import FinalState, quote_graph
 from app.models import Product
-from app.retrieval import add_product
+from app.retrieval import add_product, list_products
 
 
 load_dotenv()
+
+
+UI_PATH = Path(__file__).parent / "static" / "index.html"
 
 
 app = FastAPI(
@@ -24,9 +30,30 @@ class ClientMessage(BaseModel):
     message: str
 
 
+@app.get("/", include_in_schema=False)
+def ui() -> FileResponse:
+    return FileResponse(UI_PATH)
+
+
 @app.get("/health")
 def read_root():
     return {"message": "Healthy!"}
+
+
+@app.get("/products", response_model=list[Product])
+def read_products() -> list[Product]:
+    try:
+        return list_products()
+    except psycopg.OperationalError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="The product database is unavailable",
+        ) from exc
+    except psycopg.Error as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="The product catalog could not be read",
+        ) from exc
 
 
 @app.post("/products", response_model=Product, status_code=status.HTTP_201_CREATED)
